@@ -1,14 +1,171 @@
-# ===================================================================================== #
+# ====================================================================================== #
 # Site percolation in various graphs.
 # Author: Eddie Lee, edl56@cornell.edu
-# ===================================================================================== #
+# ====================================================================================== #
 import numpy as np
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix,lil_matrix
 from numba import njit
+import multiprocess as mp
 
 
+def simulate_brownian_walker(component, L,
+                             n_samples=1,
+                             max_steps=10000,
+                             fcn_on_visited=lambda x: None,
+                             rng=np.random):
+    """Let a single Brownian walker percolate through component til all sites have been
+    visited. At each step, the walker *always* takes a step. An alternative set of
+    dynamics belonging to the same universality class is if walkers are permitted to
+    attempt to move in a blocked direction and fail.
+    
+    Parameters
+    ----------
+    component : list of tuples
+    L : int
+        Width or height of system.
+    n_samples : int, 1
+    max_steps : int, 10000
+    fcn_on_visited : function
+        Acts on set of visited sites.
+    rng : np.random.RandomState, np.random
+
+    Returns
+    -------
+    ndarray (int)
+    list
+    ndarray (bool)
+    """
+    
+    unzippedComp = list(zip(*component))
+    assert max(unzippedComp[0])<L and max(unzippedComp[1])<L
+    componentSet = set(component)
+    
+    # build adjacency matrix where each site can have max four neighbors
+    adj = lil_matrix((len(component),len(component)), dtype=np.uint8)
+    for i,c in enumerate(component):
+        # going clockwise from right
+        if ((c[0]+1)%L,c[1]) in componentSet:
+            adj[i,component.index(((c[0]+1)%L,c[1]))] = 1
+        if (c[0],(c[1]+1)%L) in componentSet:
+            adj[i,component.index((c[0],(c[1]+1)%L))] = 1
+        if ((c[0]-1)%L,c[1]) in componentSet:
+            adj[i,component.index(((c[0]-1)%L,c[1]))] = 1
+        if (c[0],(c[1]-1)%L) in componentSet:
+            adj[i,component.index((c[0],(c[1]-1)%L))] = 1
+
+    def single_loop():
+        counter = 0
+        pos = rng.randint(len(component))
+        visited = set((pos,))
+        while (counter<max_steps) and len(visited)<len(component):
+            pos = rng.choice(adj.rows[pos])
+            visited.add(pos)
+            counter += 1
+        found = len(component)==len(visited)  # did we find all the sites?
+        return counter, found, fcn_on_visited(visited)
+        
+    diffusionTime = np.zeros(n_samples, dtype=np.uint)
+
+    success = np.zeros(n_samples, dtype=bool)
+    visitedProcessing = []
+    for i in range(n_samples):
+        diffusionTime[i], success[i], v = single_loop()
+        visitedProcessing.append(v)
+        
+    return diffusionTime, visitedProcessing, success
+
+def _simulate_brownian_walker_with_length_cutoff(component, L,
+                             n_samples=1,
+                             max_steps=10000,
+                             rng=np.random):
+    """Let a single Brownian walker percolate through component til the percolation cluster has been spanned
+    along longest axis.
+    
+    Parameters
+    ----------
+    component : list of tuples
+    L : int
+        Width or height of system.
+    n_samples : int, 1
+    max_steps : int, 10000
+    rng : np.random.RandomState, np.random
+
+    Returns
+    -------
+    ndarray (int)
+    ndarray (bool)
+    """
+    
+    from misc.utils import convex_hull, max_dist_pair2D
+    unzippedComp = list(zip(*component))
+    assert max(unzippedComp[0])<L and max(unzippedComp[1])<L
+    componentSet = set(component)
+    maxdistix = max_dist_pair2D(component)
+    maxdist = np.sqrt((component[maxdistix[0]][0]-component[maxdistix[1]][0])**2 +
+                      (component[maxdistix[0]][1]-component[maxdistix[1]][1])**2)
+    
+    # build adjacency matrix where each site can have max four neighbors
+    adj = lil_matrix((len(component),len(component)), dtype=np.uint8)
+    for i,c in enumerate(component):
+        # going clockwise from right
+        if ((c[0]+1)%L,c[1]) in componentSet:
+            adj[i,component.index(((c[0]+1)%L,c[1]))] = 1
+        if (c[0],(c[1]+1)%L) in componentSet:
+            adj[i,component.index((c[0],(c[1]+1)%L))] = 1
+        if ((c[0]-1)%L,c[1]) in componentSet:
+            adj[i,component.index(((c[0]-1)%L,c[1]))] = 1
+        if (c[0],(c[1]-1)%L) in componentSet:
+            adj[i,component.index((c[0],(c[1]-1)%L))] = 1
+    
+    def single_loop():
+        """Walker walks til conditions are violated."""
+        counter = 0
+        pos = rng.randint(len(component))
+        visited = set((pos,))
+        dist = 0
+        chull = []  # convex hull
+        while (counter<max_steps) and len(visited)<len(component) and dist<maxdist:
+            pos = rng.choice(adj.rows[pos])
+            
+            if not pos in visited:
+                # any new sites visited will belong to the current convex hull but some other points that are
+                # currently in the hull might need to be removed
+                # then, it is quick to calculate the largest separation because we know that the max pairwise
+                # distance will be between points on the hull
+                chull.append(pos)
+                chull = [chull[i] for i in convex_hull(np.vstack([component[i] for i in chull]))]
+                if len(chull)>2:
+                    dist = max_dist_pair2D(np.vstack([component[i] for i in chull]),
+                                           force_slow=True,
+                                           return_dist=True)[-1]
+
+                visited.add(pos)
+            counter += 1
+        found = len(component)==len(visited)
+        return counter, found
+        
+    diffusionTime = np.zeros(n_samples, dtype=np.uint)
+    success = np.zeros(n_samples, dtype=bool)
+    for i in range(n_samples):
+        diffusionTime[i], success[i] = single_loop()
+        
+    return diffusionTime, success
+
+
+
+# ======= #
+# Classes #
+# ======= #
 class Bethe():
     def __init__(self, z, p, rng=np.random):
+        """
+        Parameters
+        ----------
+        z : int
+        p : float
+        rng : np.random.RandomState, np.random
+        """
+
         self.z = z
         self.p = p
         self.rng = rng
@@ -36,7 +193,74 @@ class Bethe():
                     nodesToParse.append(nodeCounter)
         return nodes, edges
 
+    def generate_family_tree(self):
+        """Generate a random cluster that lives on a Bethe lattice seeding on a single
+        site and keep track of root history.
+
+        Returns
+        -------
+        list of str
+            Each string recounts the lineage of the node. The length of the string is the
+            generation.
+        """
+        
+        nodes = []
+        parents = ['0']
+        while parents:
+            children = self._produce_children(parents)
+            nodes += parents
+            parents = children
+        return nodes
+
+    def _produce_children(self, parents):
+        """
+        Parameters
+        ----------
+        parents : list of str
+
+        Returns
+        -------
+        list of str
+            children
+        """
+        
+        children = []
+        for p in parents:
+            n = self.rng.binomial(self.z, self.p)
+            for i in range(n):
+                children.append(p+str(i))
+        return children
+
+    def sample_family_tree(self, n_samples):
+        """
+        Parameters
+        ----------
+        n_samples : int
+
+        Returns
+        -------
+        list of lists of str
+            As return from self.generate_family_tree().
+        """
+        
+        avalanches = []
+        for i in range(n_samples):
+            avalanches.append(self.generate_family_tree())
+        return avalanches
+
     def sample(self, n_iters):
+        """Generate many samples of avalanches.
+
+        Parameters
+        ----------
+        n_iters : int
+
+        Returns
+        -------
+        list
+            Size of avalanches. 
+        """
+
         s = []
         for i in range(n_iters):
             s.append(len(self.generate_clusters()[0]))
@@ -98,6 +322,8 @@ def square_lattice_neighbors(i,j,n):
 
 
 
+
+# Code that remains to be adapted.
 def square_lattice_forest(p, L, rng=np.random):
     """Generate a bond percolation cluster that lives on a 2D lattice seeding it from
     (0,0) and growing out.  This does not yield the standard percolation cluster size
