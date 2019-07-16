@@ -5,6 +5,7 @@
 import numpy as np
 from scipy.sparse import coo_matrix
 
+
 def simulate_brownian_walker(component, edges, L,
                              n_samples=1,
                              max_steps=10000,
@@ -78,7 +79,8 @@ def simulate_brownian_walker(component, edges, L,
 # ======= #
 class Square2D():
     def __init__(self, L, p, rng=np.random):
-        """Generate a bond percolation cluster that lives on a 2D lattice and collect all clusters.
+        """Generate a bond percolation cluster that lives on a 2D lattice and collect all
+        clusters.
         
         Parameters
         ----------
@@ -153,7 +155,7 @@ class Square2D():
         return components
 
     def sample(self, n_iters):
-        """Generate a random graph by sampling bonds independently.
+        """Generate an entirely new random graph by sampling bonds independently.
         
         Parameters
         ----------
