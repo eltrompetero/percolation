@@ -17,6 +17,7 @@ def find_all_clusters(adj):
     Returns
     -------
     list of lists of ints
+        Each list contains the indices of the rows in adj that belong to the same cluster.
     """
     
     assert type(adj)==csr_matrix
@@ -40,3 +41,28 @@ def find_all_clusters(adj):
 
         clusters.append(thisCluster)
     return clusters
+
+def randomly_close_bonds(adj, p, rng=np.random):
+    """Given adjacency matrix keep bonds open with probability p.
+    
+    Parameters
+    ----------
+    adj : scipy.sparse.csr_matrix
+    p : float
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix
+    """
+    
+    assert type(adj) is csr_matrix
+    assert p>0
+    adj = adj.copy()
+    
+    for i in range(adj.shape[0]):
+        row = adj.getrow(i)
+        for j in row.indices[row.indices>i]:
+            if rng.rand()>p:
+                adj[i,j] = adj[j,i] = 0
+    adj.eliminate_zeros()
+    return adj

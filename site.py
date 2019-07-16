@@ -354,7 +354,12 @@ class Random2D():
         self.density = density
 
     def initialize(self):
-        """Generate points for every single box in the grid.
+        """Generate random and uniform set points for every single box in the grid. Select
+        the number of points using a Poisson distribution then randomly place that number
+        into the box.
+
+        These are saved into self.allPointsByBox which will be clustered and clusters
+        saved into self.cPointsByBox.
         """
         
         # initial set of random points centered around origin
@@ -367,11 +372,8 @@ class Random2D():
                 xy[:,1] += y
                 allPointsByBox[(x,y)] = xy
 
-        # points that form part of cluster only
-        cPointsByBox = {}
-        
         self.allPointsByBox = allPointsByBox
-        self.cPointsByBox = cPointsByBox
+        self.cPointsByBox = {}
 
     def find_shared_neighbors(self, xy1, xy2, return_ix=False):
         """Given points in box1 and box2, return points in box2 that are neighbors of points 
@@ -416,18 +418,19 @@ class Random2D():
         allPointsByBox = self.allPointsByBox
         cPointsByBox = self.cPointsByBox
         
-        xy = self.find_shared_neighbors(cPointsByBox[thisbx], allPointsByBox[neighborbx])
-        if len(xy):
-            if not neighborbx in self.boxesConsidered:
-                self.boxesToConsider.append(neighborbx)
+        if neighborbx in allPointsByBox.keys():
+            xy = self.find_shared_neighbors(cPointsByBox[thisbx], allPointsByBox[neighborbx])
+            if len(xy):
+                if not neighborbx in self.boxesConsidered:
+                    self.boxesToConsider.append(neighborbx)
 
-                # check if there is a connected component is this box alone in which case 
-                # points from this box that are neighbors of each other must be added
-                cPointsByBox[neighborbx] = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
-            else:
-                # in case there are clusters that are not connected within a single box but by virtue of a
-                # link extending thru neighboring boxes
-                cPointsByBox[neighborbx] = np.unique(np.append(cPointsByBox[neighborbx], xy, axis=0), axis=0)
+                    # check if there is a connected component is this box alone in which case 
+                    # points from this box that are neighbors of each other must be added
+                    cPointsByBox[neighborbx] = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
+                else:
+                    # in case there are clusters that are not connected within a single box but by virtue of a
+                    # link extending thru neighboring boxes
+                    cPointsByBox[neighborbx] = np.unique(np.append(cPointsByBox[neighborbx], xy, axis=0), axis=0)
         
     def grow(self, bx, ix, max_steps=10_000):
         """Grow cluster from given starting point.
@@ -481,8 +484,9 @@ class Random2D():
         remainingpts = set()
         for x in range(-self.L, self.L):
             for y in range(-self.L, self.L):
-                for i in range(len(self.allPointsByBox[(x,y)])):
-                    remainingpts.add(((x,y),i))
+                if (x,y) in self.allPointsByBox.keys():
+                    for i in range(len(self.allPointsByBox[(x,y)])):
+                        remainingpts.add(((x,y),i))
         
         while remainingpts:
             self.grow(*remainingpts.pop())
