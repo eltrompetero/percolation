@@ -4,28 +4,17 @@
 # ====================================================================================== #
 import numpy as np
 from scipy.sparse import csr_matrix
-from numba import njit
+from numba import jit, njit
 
 
-def find_all_clusters(adj, fast=False):
-    """Find all connected clusters of points by searching through all points and their
-    neighbors given the adjacency matrix.
-
-    Parameters
-    ---------
-    adj : scipy.sparse.csr_matrix
-        Make sure this is symmetric.
-    fast : bool, False
-
-    Returns
-    -------
-    list of lists of ints
-        Each list contains the indices of the rows in adj that belong to the same cluster.
+def _find_all_clusters(adj, fast=False):
+    """Slow version to compare with find_all_clusters().
     """
     
-    assert type(adj)==csr_matrix
-    assert (adj.data==1).all()
-    assert (adj-adj.transpose()).count_nonzero()==0
+    if not fast:
+        assert type(adj)==csr_matrix
+        assert (adj.data==1).all()
+        assert (adj-adj.transpose()).count_nonzero()==0
 
     clusters = []
     remainingpts = set(range(adj.shape[0]))
@@ -45,6 +34,63 @@ def find_all_clusters(adj, fast=False):
 
         clusters.append(thisCluster)
     return clusters
+
+def find_all_clusters(adj, fast=False):
+    """Find all connected clusters of points by searching through all points and their
+    neighbors given the adjacency matrix.
+
+    Parameters
+    ---------
+    adj : scipy.sparse.csr_matrix
+        Make sure this is symmetric.
+    fast : bool, False
+
+    Returns
+    -------
+    list of lists of ints
+        Each list contains the indices of the rows in adj that belong to the same cluster.
+    """
+    
+    if not fast:
+        assert type(adj)==csr_matrix
+        assert (adj.data==1).all()
+        assert (adj-adj.transpose()).count_nonzero()==0
+    
+    indices = adj.indices
+    indptr = adj.indptr
+    n = adj.shape[0]
+    
+    @njit
+    def jit_wrapper(indices, indptr, n):
+        clusters = []
+        remainingpts = set(range(n))
+        
+        while len(remainingpts)>0:
+            # seed pt
+            thisCluster = [remainingpts.pop()]
+            if thisCluster[-1]<indptr.size:
+                toSearch = set(indices[indptr[thisCluster[-1]]:indptr[thisCluster[-1]+1]])
+            else:
+                toSearch = set(indices[indptr[thisCluster[-1]]:])
+
+            # sequentially search through neighborhood starting with seed pt
+            while len(toSearch)>0:
+                thisCluster.append(toSearch.pop())
+                remainingpts.remove(thisCluster[-1])
+                if thisCluster[-1]<indptr.size:
+                    for neighbor in indices[indptr[thisCluster[-1]]:indptr[thisCluster[-1]+1]]:
+                        if neighbor in remainingpts and not neighbor in toSearch:
+                            toSearch.add(neighbor)
+                else:
+                    for neighbor in indices[indptr[thisCluster[-1]]:]:
+                        if neighbor in remainingpts and not neighbor in toSearch:
+                            toSearch.add(neighbor)
+
+
+            clusters.append(thisCluster)
+        return clusters
+
+    return jit_wrapper(indices, indptr, n)
 
 def randomly_close_bonds(adj, p, rng=np.random):
     """Given adjacency matrix keep bonds open with probability p.
