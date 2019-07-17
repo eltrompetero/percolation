@@ -332,7 +332,8 @@ class Random2D():
                  radius=1.,
                  density=1.,
                  rng=None):
-        """Percolation cluster. This has distribution of 3/2.
+        """Percolation cluster. This has distribution exponent tau of 3/2 when density is
+        low and 1 when density is high.
         
 	By uniformly generating points within a box, count all connected clusters
         consisting of points that are within distance r of each other.
