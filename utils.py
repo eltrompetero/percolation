@@ -55,6 +55,7 @@ def find_all_clusters(adj, fast=False):
         assert type(adj)==csr_matrix
         assert (adj.data==1).all()
         assert (adj-adj.transpose()).count_nonzero()==0
+        assert (adj.diagonal()==0).all()
     
     indices = adj.indices
     indptr = adj.indptr
@@ -138,9 +139,15 @@ def random_walk(xy, adj, tmax, rng=np.random):
     path[0] = rng.randint(len(xy))
     xy0 = xy[path[0]]  # for avoiding adding element access time in loop
     radius = np.zeros(tmax)
+    
+    indices = adj.indices
+    indptr = adj.indptr
 
     for i in range(1, tmax):
-        path[i] = rng.choice(adj.getrow(path[i-1]).indices)
+        if path[i-1]<indptr.size:
+            path[i] = rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]])
+        else:
+            path[i] = rng.choice(indices[indptr[path[i-1]]:])
         newd = np.linalg.norm(xy[path[i]]-xy0)
         if newd>radius[i-1]:
             radius[i] = newd
