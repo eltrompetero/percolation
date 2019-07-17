@@ -128,3 +128,28 @@ def cum_unique(x):
             counter += 1
         c[i+1] = counter
     return c
+
+def digitize_by_x(x, y, bins):
+    """For measuring scaling relations.
+    
+    Parameters
+    ----------
+    x : ndarray
+    y : ndarray
+    bins : ndarray
+    
+    Returns
+    -------
+    ndarray
+        Binned then averaged x.
+    ndarray
+        Binned then averaged y.
+    """
+    
+    ix = np.digitize(x, bins)
+    binx = np.zeros(ix.max()+1)
+    biny = np.zeros(ix.max()+1)
+    for i in np.unique(ix):
+        binx[i] = x[ix==i].mean()
+        biny[i] = y[ix==i].mean()
+    return binx, biny
