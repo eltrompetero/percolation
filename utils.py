@@ -60,7 +60,7 @@ def find_all_clusters(adj, fast=False):
     indptr = adj.indptr
     n = adj.shape[0]
     
-    @njit
+    #@jit  # there seems to be a bug with using jit here (think it's a numba bug)
     def jit_wrapper(indices, indptr, n):
         clusters = []
         remainingpts = set(range(n))
@@ -85,7 +85,6 @@ def find_all_clusters(adj, fast=False):
                     for neighbor in indices[indptr[thisCluster[-1]]:]:
                         if neighbor in remainingpts and not neighbor in toSearch:
                             toSearch.add(neighbor)
-
 
             clusters.append(thisCluster)
         return clusters
