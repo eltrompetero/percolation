@@ -131,11 +131,13 @@ def random_walk(xy, adj, tmax, rng=np.random):
         
     Returns
     -------
-    list of ints
+    ndarray of ints
         Path given by indices of xy visited.
+    ndarray
+        Radius during trajectory.
     """
 
-    path = np.zeros(tmax, dtype=int)
+    path = np.zeros(tmax, dtype=np.int32)
     path[0] = rng.randint(len(xy))
     xy0 = xy[path[0]]  # for avoiding adding element access time in loop
     radius = np.zeros(tmax)
@@ -155,6 +157,66 @@ def random_walk(xy, adj, tmax, rng=np.random):
             radius[i] = radius[i-1]
     
     return path, radius
+
+def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
+                          rng=np.random,
+                          return_radius=True):
+    """Random walk starting from a random site with a cost in resource when exploring a
+    old site and a gain in resource when exploring a new site. Walk stops when resource is
+    depleted.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        Coordinates for measuring distance.
+    adj : scipy.sparse.csr_matrix
+    plus_factor : float
+        Amount of resource gained per new site.
+    minus_factor : float
+        Amount of resource lost per old site.
+    tmax : int
+        Max number of steps to take before stopping.
+    rng : np.random.RandomState
+    return_radius : bool, True
+        
+    Returns
+    -------
+    ndarray of ints
+        Path given by indices of xy visited.
+    ndarray
+        Radius during trajectory.
+    """
+    
+    assert plus_factor>0 and minus_factor<0
+    path = []
+    path.append( rng.randint(len(xy)) )
+    radius = [0]
+    visited = set((path[0],))
+    resource = plus_factor
+    
+    indices = adj.indices
+    indptr = adj.indptr
+
+    i=0
+    while resource>0 and i<tmax:
+        # move to a random neighbor
+        if path[-1]<indptr.size:
+            path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
+        else:
+            path.append(rng.choice(indices[indptr[path[i-1]]:]))
+        
+        # save path and new distance
+        if path[-1] in visited:
+            resource += minus_factor
+        else:
+            visited.add(path[-1])
+            resource += plus_factor
+        i += 1
+    
+    if return_radius:
+        xy0 = xy[path[0]]
+        return np.array(path), np.linalg.norm(xy[path]-xy0, axis=1)
+    return np.array(path)
 
 @njit
 def cum_unique(x):
