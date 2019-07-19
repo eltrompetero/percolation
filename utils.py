@@ -137,26 +137,20 @@ def random_walk(xy, adj, tmax, rng=np.random):
         Radius during trajectory.
     """
 
-    path = np.zeros(tmax, dtype=np.int32)
-    path[0] = rng.randint(len(xy))
+    path = []
+    path.append(rng.randint(len(xy)))
     xy0 = xy[path[0]]  # for avoiding adding element access time in loop
-    radius = np.zeros(tmax)
     
     indices = adj.indices
     indptr = adj.indptr
 
     for i in range(1, tmax):
-        if path[i-1]<indptr.size:
-            path[i] = rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]])
+        if path[-1]<indptr.size:
+            path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
         else:
-            path[i] = rng.choice(indices[indptr[path[i-1]]:])
-        newd = np.linalg.norm(xy[path[i]]-xy0)
-        if newd>radius[i-1]:
-            radius[i] = newd
-        else:
-            radius[i] = radius[i-1]
+            path.append(rng.choice(indices[indptr[path[i-1]]:]))
     
-    return path, radius
+    return np.array(path), np.maximum.accumulate(np.linalg.norm(xy[path]-xy0,axis=1))
 
 def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
                           rng=np.random,
@@ -215,7 +209,7 @@ def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
     
     if return_radius:
         xy0 = xy[path[0]]
-        return np.array(path), np.linalg.norm(xy[path]-xy0, axis=1)
+        return np.array(path), np.maximum.accumulate(np.linalg.norm(xy[path]-xy0, axis=1))
     return np.array(path)
 
 @njit
