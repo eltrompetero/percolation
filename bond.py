@@ -176,4 +176,71 @@ class Square2D():
             edges.append(self.edges)
             components.append(self.find_components())
         return components, edges
+
+    def grow_cluster(self, n_samples, tmax=1_000_000, lmax=100, return_zeros=False):
+        """Grow a percolation cluster starting from (0,0). This has no finite boundary.
+        
+        Parameters
+        ----------
+        n_samples : int
+        tmax : int, 1000
+        lmax : int, 1000
+        return_zeros : bool, False
+        
+        Returns
+        -------
+        list of lists
+            All directed bonds (startxy, endxy) in the cluster.
+        list of lists
+            All (x,y) coordinates in the cluster.
+        """
+        
+        bonds = []
+        sites = []
+        for i in range(n_samples):
+            s = []
+            while not return_zeros and len(s)==0:
+                b, s = self._grow_cluster(tmax, lmax, return_zeros)
+            bonds.append(b)
+            sites.append(s)
+
+        return bonds, sites
+
+    def _grow_cluster(self, tmax, lmax, return_zeros):
+        """Grow a single cluster. All bonds are explored once with probability p. Growth
+        stops when no more bonds can be explored."""
+
+        visitedBonds = set()
+        # tuples of start to end
+        bondsToVisit = set(( ((0,0),(1,0)), ((0,0),(0,1)), ((0,0),(-1,0)), ((0,0),(0,-1)) ))
+        clusterSites = set()
+        clusterBonds = []
+        thisSite = (0,0)
+        
+        counter = 0
+        while (bondsToVisit and
+               counter<tmax and
+               abs(thisSite[0])<=lmax and
+               abs(thisSite[1])<=lmax):
+            thisBond = bondsToVisit.pop()
+
+            if self.rng.rand()<self.p:
+                clusterBonds.append(thisBond)
+                # iterate through all potential neighbors of this bond unless this site has already been
+                # visited
+                thisSite = thisBond[1]
+                if not thisSite in clusterSites:
+                    clusterSites.add(thisSite)
+                    potentialNewSites = ((thisBond[1][0]-1, thisBond[1][1]),
+                                         (thisBond[1][0], thisBond[1][1]-1),
+                                         (thisBond[1][0]+1, thisBond[1][1]),
+                                         (thisBond[1][0], thisBond[1][1]+1))
+                    # check if any of these bonds are allowed to be explored
+                    for xy in potentialNewSites:
+                        if (not xy==thisBond[0] and  # not the original site
+                            not ((thisSite,xy) in visitedBonds or (xy,thisSite) in visitedBonds) and
+                            not ((thisSite,xy) in bondsToVisit or (xy,thisSite) in bondsToVisit)):
+                            bondsToVisit.add((thisSite,xy))
+                counter += 1
+        return clusterBonds, list(clusterSites)
 #end Square2D
