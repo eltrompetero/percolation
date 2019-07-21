@@ -37,6 +37,8 @@ def nodes(components, L,
           fig_kw={'figsize':(8,8)},
           marker='.',
           plot_kw={}):
+    """Show each occupied site.
+    """
     if fig is None and ax is None:
         fig = plt.figure(**fig_kw)
         ax = fig.add_subplot(1,1,1, aspect='equal')

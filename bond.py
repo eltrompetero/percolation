@@ -177,8 +177,8 @@ class Square2D():
             components.append(self.find_components())
         return components, edges
 
-    def grow_cluster(self, n_samples, tmax=1_000_000, lmax=100, return_zeros=False):
-        """Grow a percolation cluster starting from (0,0). This has no finite boundary.
+    def grow_cluster(self, n_samples, tmax=np.inf, lmax=100, return_zeros=False):
+        """Grow a percolation cluster starting from (0,0).
         
         Parameters
         ----------
