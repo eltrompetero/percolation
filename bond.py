@@ -178,12 +178,13 @@ class Square2D():
         return components, edges
 
     def grow_cluster(self, n_samples, tmax=np.inf, lmax=100, return_zeros=False):
-        """Grow a percolation cluster starting from (0,0).
+        """Grow a percolation cluster starting from (0,0). This is pretty fast and can do
+        1000x1000 without trouble.
         
         Parameters
         ----------
         n_samples : int
-        tmax : int, 1000
+        tmax : int, inf
         lmax : int, 1000
         return_zeros : bool, False
         
@@ -200,13 +201,51 @@ class Square2D():
         for i in range(n_samples):
             s = []
             while not return_zeros and len(s)==0:
-                b, s = self._grow_cluster(tmax, lmax, return_zeros)
+                b, s = self._grow_cluster(tmax, lmax)
             bonds.append(b)
             sites.append(s)
-
         return bonds, sites
 
-    def _grow_cluster(self, tmax, lmax, return_zeros):
+    def grow_cluster_by_shell(self, n_samples,
+                              tmax=np.inf,
+                              lmax=100,
+                              return_zeros=False,
+                              min_shells=1):
+        """See self.grow_cluster().
+        
+        Parameters
+        ----------
+        n_samples : int
+        tmax : int, inf
+        lmax : int, 1000
+        return_zeros : bool, False
+        
+        Returns
+        -------
+        list of lists
+            All directed bonds (startxy, endxy) in the cluster.
+        list of lists
+            All (x,y) coordinates in the cluster.
+        list of dict
+            Keys are sites and values are shell indices.
+        """
+        
+        bonds = []
+        sites = []
+        siteShells = []
+        counter = 0
+        while counter<n_samples:
+            s = []
+            while not return_zeros and len(s)==0:
+                b, s, sh = self._grow_cluster_by_shell(tmax, lmax)
+            if len(sh)>=min_shells:
+                bonds.append(b)
+                sites.append(s)
+                siteShells.append(sh)
+                counter += 1
+        return bonds, sites, siteShells
+
+    def _grow_cluster(self, tmax, lmax):
         """Grow a single cluster. All bonds are explored once with probability p. Growth
         stops when no more bonds can be explored."""
 
@@ -243,4 +282,46 @@ class Square2D():
                             bondsToVisit.add((thisSite,xy))
                 counter += 1
         return clusterBonds, list(clusterSites)
+
+    def _grow_cluster_by_shell(self, tmax, lmax):
+        """Addition to self._grow_cluster() to include shells. This is included as an
+        additional time index that is incremented with every bond and site. Thus this code
+        include memory access and shell index incrementing time."""
+
+        visitedBonds = set()
+        # tuples of start to end
+        bondsToVisit = set(( ((0,0),(1,0)), ((0,0),(0,1)), ((0,0),(-1,0)), ((0,0),(0,-1)) ))
+        clusterSites = set(((0,0),))
+        clusterBonds = []
+        siteShell = {}  # stores the shell index for each site
+        thisSite = (0,0)
+        siteShell[thisSite] = 0
+        
+        counter = 0
+        while (bondsToVisit and
+               counter<tmax and
+               abs(thisSite[0])<=lmax and
+               abs(thisSite[1])<=lmax):
+            thisBond = bondsToVisit.pop()
+
+            if self.rng.rand()<self.p:
+                clusterBonds.append(thisBond)
+                # iterate through all potential neighbors of this bond unless this site has already been
+                # visited
+                thisSite = thisBond[1]
+                if not thisSite in clusterSites:
+                    clusterSites.add(thisSite)
+                    siteShell[thisSite] = siteShell[thisBond[0]]+1
+                    potentialNewSites = ((thisBond[1][0]-1, thisBond[1][1]),
+                                         (thisBond[1][0], thisBond[1][1]-1),
+                                         (thisBond[1][0]+1, thisBond[1][1]),
+                                         (thisBond[1][0], thisBond[1][1]+1))
+                    # check if any of these bonds are allowed to be explored
+                    for xy in potentialNewSites:
+                        if (not xy==thisBond[0] and  # not the original site
+                            not ((thisSite,xy) in visitedBonds or (xy,thisSite) in visitedBonds) and
+                            not ((thisSite,xy) in bondsToVisit or (xy,thisSite) in bondsToVisit)):
+                            bondsToVisit.add((thisSite,xy))
+                counter += 1
+        return clusterBonds, list(clusterSites), siteShell
 #end Square2D

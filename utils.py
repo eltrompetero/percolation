@@ -7,6 +7,30 @@ from scipy.sparse import csr_matrix
 from numba import jit, njit
 
 
+def invert_shell_by_site_dict(shellsBySite):
+    """Invert dictionary with keys as (x,y) coordinates and values as shell indices to a
+    dictionary with shell indices as the keys. This is a non-invertible operation.
+
+    Parameters
+    ----------
+    shellsBySite : dict
+
+    Returns
+    -------
+    dict
+        Each key is the shell index and the value is a list of (x,y) tuples. Dict is
+        formed sequentially by the index of the shell so it is chronological.
+    """
+    
+    ushells = sorted(set(shellsBySite.values()))
+    shellsOfxy = {}
+    for k in ushells:
+        shellsOfxy[k] = []
+    for xy,shell in shellsBySite.items():
+        shellsOfxy[shell].append(xy)
+
+    return shellsOfxy
+
 def _find_all_clusters(adj, fast=False):
     """Slow version to compare with find_all_clusters().
     """
@@ -52,10 +76,7 @@ def find_all_clusters(adj, fast=False):
     """
     
     if not fast:
-        assert type(adj)==csr_matrix
-        assert (adj.data==1).all()
-        assert (adj-adj.transpose()).count_nonzero()==0
-        assert (adj.diagonal()==0).all()
+        _check_adj(adj) 
     
     indices = adj.indices
     indptr = adj.indptr
@@ -117,7 +138,7 @@ def randomly_close_bonds(adj, p, rng=np.random):
     adj.eliminate_zeros()
     return adj
 
-def random_walk(xy, adj, tmax, rng=np.random):
+def random_walk(xy, adj, tmax, rng=np.random, fast=False):
     """Random walk starting from a random site.
     
     Parameters
@@ -134,23 +155,31 @@ def random_walk(xy, adj, tmax, rng=np.random):
     ndarray of ints
         Path given by indices of xy visited.
     ndarray
-        Radius during trajectory.
+        Distance from origin.
+    ndarray
+        Max radius during trajectory.
     """
+    
+    if not fast:
+        assert len(xy)==adj.shape[0]
+        _check_adj(adj)
 
     path = []
     path.append(rng.randint(len(xy)))
     xy0 = xy[path[0]]  # for avoiding adding element access time in loop
     
-    indices = adj.indices
-    indptr = adj.indptr
+    indices = adj.indices.tolist()
+    indptr = adj.indptr.tolist()
+    lenindptr = len(indptr)
 
     for i in range(1, tmax):
-        if path[-1]<indptr.size:
+        if path[-1]<lenindptr:
             path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
         else:
             path.append(rng.choice(indices[indptr[path[i-1]]:]))
     
-    return np.array(path), np.maximum.accumulate(np.linalg.norm(xy[path]-xy0,axis=1))
+    d = np.linalg.norm(xy[path]-xy0, axis=1)
+    return np.array(path), d, np.maximum.accumulate(d)
 
 def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
                           rng=np.random,
@@ -261,3 +290,16 @@ def digitize_by_x(x, y, bins):
         binx[i] = x[ix==i].mean()
         biny[i] = y[ix==i].mean()
     return binx, biny
+
+def _check_adj():
+    """Helper function for checking adjacency matrices.
+    
+    Checks that matrix is of type csr_matrix, matrix is square, nonzero elements are all
+    1, that matrix symmetric, and that diagonal elements are 0.
+    """
+
+    assert type(adj)==csr_matrix
+    assert adj.shape[0]==adj.shape[1]
+    assert (adj.data==1).all()
+    assert (adj-adj.transpose()).count_nonzero()==0
+    assert (adj.diagonal()==0).all()
