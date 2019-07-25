@@ -4,6 +4,7 @@
 # ====================================================================================== #
 import numpy as np
 from scipy.sparse import coo_matrix
+from scipy.spatial.distance import cdist 
 
 
 def simulate_brownian_walker(component, edges, L,
@@ -325,3 +326,238 @@ class Square2D():
                 counter += 1
         return clusterBonds, list(clusterSites), siteShell
 #end Square2D
+
+
+class RandomFixedRadius():
+    """Random points in 2D connected when any two points are within radius.
+
+    See "2019-07-11 random walk on random graph.ipynb" for examples.
+    """
+    def __init__(self, L,
+                 radius=1.,
+                 density=3/np.pi,
+                 rng=None):
+        """Generate a random connected cluster using a cutoff radius 1 starting from four 
+        boxes around the origin.
+        
+        Parameters
+        ----------
+        L : int
+            Max distance cluster is permitted to go in both x and y directions.
+        radius : float, 1.
+        density : float, 1.
+            Number of points per unit area.
+        rng : np.random.RandomState
+        """
+
+        assert L>1 and radius>0 and density>0
+        self.L = L
+        self.rng = rng or np.random
+        self.r = radius
+        self.density = density
+
+    def initialize(self):
+        """Generate points and cluster them for the four boxes centered about the origin.
+        """
+        
+        # initial set of random points centered around origin
+        # boxes are labeled by their bottom left point
+        allPointsByBox = {(-1,0):[], (0,0):[], (-1,-1):[], (0,-1):[]}  # labeled by bottom left corner
+        while all([len(i)==0 for i in allPointsByBox.values()]):
+            for b in allPointsByBox.keys():
+                xy = self.rng.rand(self.rng.poisson(self.density),2)
+                xy[:,0] += b[0]
+                xy[:,1] += b[1]
+                allPointsByBox[b] = xy
+
+        # points that form part of cluster only
+        # first set of points are all ones that are within r of the origin and all the points in 
+        # those boxes that form part of the connected cluster
+        cPointsByBox = {}
+        for k in allPointsByBox:
+            withinRadiusIx = np.linalg.norm(allPointsByBox[k], axis=1)<=1
+            cPointsByBox[k] = allPointsByBox[k][withinRadiusIx]
+        for k,xy in cPointsByBox.items():
+            cPointsByBox[k] = self.find_shared_neighbors(xy, allPointsByBox[k])
+        
+        self.allPointsByBox = allPointsByBox
+        self.cPointsByBox = cPointsByBox
+        
+    def populate_box(self, x, y):
+        """Populate box with a uniformly random sample."""
+
+        xy = self.rng.rand(self.rng.poisson(self.density),2)
+        xy[:,0] += x
+        xy[:,1] += y
+        self.allPointsByBox[(x,y)] = xy
+
+    def find_shared_neighbors(self, xy1, xy2):
+        """Given points in box1 and box2, return points in box2 that are neighbors of points 
+        in box1 within given distance threshold.
+
+        Parameters
+        ----------
+        xy1 : ndarray
+        xy2 : ndarray
+        r : float, 1
+
+        Returns
+        -------
+        ndarray
+            Set of points in xy2.
+        """
+
+        d = cdist( xy1, xy2 )
+        return xy2[(d<=self.r).any(0)]
+
+    def _compare_with_one_box(self, thisbx, neighborbx):
+        """Wrapper for comparing this box with a particular neighboring box and updating
+        all the variables in the loop.
+
+        Parameters
+        ----------
+        thisbx : tuple
+        neighborbx : tuple
+
+        Returns
+        -------
+        None
+        """
+        
+        if abs(neighborbx[0])>self.L:
+            if not self.hitx:
+                print("Hit x boundary.")
+                self.hitx = True
+            return
+        if abs(neighborbx[1])>self.L:
+            if not self.hity:
+                print("Hit y boundary.")
+                self.hity = True
+            return
+        allPointsByBox = self.allPointsByBox
+        cPointsByBox = self.cPointsByBox
+        
+        if not neighborbx in allPointsByBox.keys():
+            self.populate_box(*neighborbx)
+        xy = self.find_shared_neighbors(cPointsByBox[thisbx], allPointsByBox[neighborbx])
+        if len(xy):
+            if not neighborbx in self.boxesConsidered:
+                self.boxesToConsider.append(neighborbx)
+
+                # check if there is a connected component is this box alone in which case 
+                # points from this box that are neighbors of each other must be added
+                cPointsByBox[neighborbx] = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
+            else:
+                # in case there are clusters that are not connected within a single box but by virtue of a
+                # link extending thru neighboring boxes
+                cPointsByBox[neighborbx] = np.unique(np.append(cPointsByBox[neighborbx], xy, axis=0), axis=0)
+        
+    def grow(self, max_steps=10_000):
+        """Grow cluster from origin."""
+        
+        self.hitx = False
+        self.hity = False
+        allPointsByBox = self.allPointsByBox
+        cPointsByBox = self.cPointsByBox
+        
+        counter = 0
+        self.boxesToConsider = list(cPointsByBox.keys())
+        self.boxesConsidered = set()
+        while self.boxesToConsider and counter<max_steps:
+            bx = self.boxesToConsider.pop(0)
+            if not bx in self.boxesConsidered:
+                self.boxesConsidered.add(bx)
+
+                # search all neighbors if there are points in this box
+                if allPointsByBox[bx].size:
+                    # look for neighboring points in all surrounding neighboring boxes
+                    self._compare_with_one_box(bx, (bx[0]-1, bx[1]))
+                    self._compare_with_one_box(bx, (bx[0]-1, bx[1]-1))
+                    self._compare_with_one_box(bx, (bx[0], bx[1]-1))
+                    self._compare_with_one_box(bx, (bx[0]+1, bx[1]-1))
+                    self._compare_with_one_box(bx, (bx[0]+1, bx[1]))
+                    self._compare_with_one_box(bx, (bx[0]+1, bx[1]+1))
+                    self._compare_with_one_box(bx, (bx[0], bx[1]+1))
+                    self._compare_with_one_box(bx, (bx[0]-1, bx[1]+1))
+                counter += 1
+        if counter==max_steps:
+            print("Max steps reached.")
+            
+    def plot(self,
+             fig=None,
+             ax=None,
+             figure_kw={'figsize':(5,5)},
+             show_bounding_circles=False):
+        """
+        Parameters
+        ----------
+        fig : mpl.Figure, None
+        ax : mpl.Axes, None
+        figure_kw : dict, {'figsize':(5,5)}
+        show_bounding_circles : bool, False
+            If True, circles draw around every single point not included in 
+            cluster. This can be useful for debugging.
+            
+        Returns
+        -------
+        mpl.Figure
+        mpl.Axes
+        """
+
+        allPointsByBox = self.allPointsByBox
+        cPointsByBox = self.cPointsByBox
+        
+        # setup
+        if fig is None:
+            fig = plt.figure(**figure_kw)
+            ax = fig.add_subplot(1,1,1,aspect='equal')
+        elif ax is None:
+            ax = fig.add_subplot(1,1,1,aspect='equal')
+
+        # get max bounds
+        xmx = max([abs(k[0]) for k in cPointsByBox.keys()])
+        ymx = max([abs(k[1]) for k in cPointsByBox.keys()])
+
+        # plot all points
+        for xy in allPointsByBox.values():
+            ax.plot(xy[:,0], xy[:,1], 'k.')
+
+        # plot cluster points
+        for xy in cPointsByBox.values():
+            ax.plot(xy[:,0], xy[:,1], 'rx')
+        ax.set(xlim=(-xmx-1,xmx+2), ylim=(-ymx-1,ymx+2),
+               xlabel='x', ylabel='y')
+
+        # plot origin circle
+        circle = plt.Circle((0, 0), 1, color=None, fill=None, linestyle='--')
+        ax.add_artist(circle)
+
+        # plot circles around points that are not included in cluster
+        if show_bounding_circles:
+            for k in allPointsByBox:
+                if k in cPointsByBox:
+                    plotix = np.where( (cdist(allPointsByBox[k], cPointsByBox[k])>1e-14).all(1) )[0]
+                else:
+                    plotix = range(len(allPointsByBox[k]))
+                for ix in plotix:
+                    xy = allPointsByBox[k][ix]
+                    circle = plt.Circle(xy, 1, color=None, fill=None)
+                    ax.add_artist(circle)
+                    
+        return fig, ax
+    
+    def sample_sizes(self, n_samples, iprint_every=False, grow_kw={}):
+        sizes = np.zeros(n_samples, dtype=int)
+        for i in range(n_samples):
+            self.initialize()
+            self.grow(**grow_kw)
+            sizes[i] = sum([len(i) for i in self.cPointsByBox])
+            if iprint_every and (i%iprint_every)==0:
+                print("Done with sample %d."%i)
+        return sizes
+    
+    def n_points(self):
+        """Size of cluster.
+        """
+        return sum([len(i) for i in self.cPointsByBox])
+#end RandomFixedRadius
