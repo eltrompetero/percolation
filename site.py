@@ -327,7 +327,7 @@ def square_lattice_neighbors(i,j,n):
     return ((i+1)%n,j), ((i-1)%n,j), (i,(j+1)%n), (i,(j-1)%n)
 
 
-class Random2D():
+class Random2DBox():
     def __init__(self, L,
                  radius=1.,
                  density=1.,
