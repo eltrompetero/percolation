@@ -138,7 +138,10 @@ def randomly_close_bonds(adj, p, rng=np.random):
     adj.eliminate_zeros()
     return adj
 
-def random_walk(xy, adj, tmax, rng=np.random, fast=False):
+def random_walk(xy, adj, tmax,
+                rng=np.random,
+                return_radius=True,
+                fast=False):
     """Random walk starting from a random site.
     
     Parameters
@@ -149,6 +152,8 @@ def random_walk(xy, adj, tmax, rng=np.random, fast=False):
     tmax : int
         Max number of steps to take before stopping.
     rng : np.random.RandomState
+    return_radius : bool, True
+    fast : bool, False
         
     Returns
     -------
@@ -178,8 +183,10 @@ def random_walk(xy, adj, tmax, rng=np.random, fast=False):
         else:
             path.append(rng.choice(indices[indptr[path[i-1]]:]))
     
-    d = np.linalg.norm(xy[path]-xy0, axis=1)
-    return np.array(path), d, np.maximum.accumulate(d)
+    if return_radius:
+        d = np.linalg.norm(xy[path]-xy0, axis=1)
+        return np.array(path), d, np.maximum.accumulate(d)
+    return np.array(path)
 
 def random_walk_blind(xy, adj, tmax, rng=np.random, fast=False):
     """Random walk starting from a random site with "blind ant" that can make a bad choice
@@ -235,7 +242,8 @@ def random_walk_blind(xy, adj, tmax, rng=np.random, fast=False):
 
 def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
                           rng=np.random,
-                          return_radius=True):
+                          return_radius=True,
+                          start_site=None):
     """Random walk starting from a random site with a cost in resource when exploring a
     old site and a gain in resource when exploring a new site. Walk stops when resource is
     depleted.
@@ -253,6 +261,7 @@ def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
         Max number of steps to take before stopping.
     rng : np.random.RandomState
     return_radius : bool, True
+    start_site : int, None
         
     Returns
     -------
@@ -263,8 +272,9 @@ def random_walk_with_cost(xy, adj, plus_factor, minus_factor, tmax,
     """
     
     assert plus_factor>0 and minus_factor<0
+    start_site = start_site or rng.randint(len(xy))
     path = []
-    path.append( rng.randint(len(xy)) )
+    path.append( start_site )
     radius = [0]
     visited = set((path[0],))
     resource = plus_factor
@@ -319,7 +329,7 @@ def cum_unique(x):
     return c
 
 def digitize_by_x(x, y, bins):
-    """For measuring scaling relations.
+    """Average y data points by binned x for measuring scaling relations.
     
     Parameters
     ----------
