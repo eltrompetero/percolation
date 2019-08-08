@@ -185,9 +185,13 @@ class Square2D():
         Parameters
         ----------
         n_samples : int
+            Number of clusters to generate.
         tmax : int, inf
+            Max number of steps.
         lmax : int, 1000
+            Walls at x=+/-lmax and y=+/-lmax. Cluster growth ends when it hits a wall.
         return_zeros : bool, False
+            If False, do not return a cluster that failed to grow.
         
         Returns
         -------

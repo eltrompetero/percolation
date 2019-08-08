@@ -3,7 +3,7 @@
 # Author: Eddie Lee, edl56@cornell.edu
 # ====================================================================================== #
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, coo_matrix
 from numba import jit, njit
 
 
@@ -141,11 +141,64 @@ def randomly_close_bonds(adj, p, rng=np.random):
 def random_walk(xy, adj, tmax,
                 rng=np.random,
                 return_radius=True,
-                fast=False):
+                fast=False,
+                xy0=None):
     """Random walk starting from a random site.
     
     Parameters
     ----------
+    xy : ndarray
+        Coordinates for measuring distance.
+    adj : scipy.sparse.csr_matrix
+    tmax : int
+        Max number of steps to take before stopping.
+    rng : np.random.RandomState
+    return_radius : bool, True
+    fast : bool, False
+    xy0 : int, None
+        
+    Returns
+    -------
+    ndarray of ints
+        Path given by indices of xy visited.
+    ndarray
+        Distance from origin.
+    ndarray
+        Max radius during trajectory.
+    """
+    
+    if not fast:
+        assert len(xy)==adj.shape[0]
+        _check_adj(adj)
+
+    path = []
+    path.append(xy0 or rng.randint(len(xy)))
+    xy0 = xy[path[0]]  # for avoiding adding element access time in loop
+    
+    indices = adj.indices.tolist()
+    indptr = adj.indptr.tolist()
+    lenindptr = len(indptr)
+
+    for i in range(1, tmax):
+        if path[-1]<lenindptr:
+            path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
+        else:
+            path.append(rng.choice(indices[indptr[path[i-1]]:]))
+    
+    if return_radius:
+        d = np.linalg.norm(xy[path]-xy0, axis=1)
+        return np.array(path), d, np.maximum.accumulate(d)
+    return np.array(path)
+
+def multiple_walkers_random_walk(n_walkers, xy, adj, tmax,
+                                 rng=np.random,
+                                 return_radius=True,
+                                 fast=False):
+    """Random walk of n walkers starting from same random point.
+    
+    Parameters
+    ----------
+    n_walkers : int
     xy : ndarray
         Coordinates for measuring distance.
     adj : scipy.sparse.csr_matrix
@@ -170,23 +223,20 @@ def random_walk(xy, adj, tmax,
         _check_adj(adj)
 
     path = []
-    path.append(rng.randint(len(xy)))
-    xy0 = xy[path[0]]  # for avoiding adding element access time in loop
+    distFromOrigin = []
+    radius = []
+    origin = rng.randint(len(xy))
     
-    indices = adj.indices.tolist()
-    indptr = adj.indptr.tolist()
-    lenindptr = len(indptr)
+    for i in range(n_walkers):
+        p, d, r = random_walk(xy, adj, tmax, fast=True)
+        path.append(p)
+        distFromOrigin.append(d)
+        radius.append(r)
 
-    for i in range(1, tmax):
-        if path[-1]<lenindptr:
-            path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
-        else:
-            path.append(rng.choice(indices[indptr[path[i-1]]:]))
-    
-    if return_radius:
-        d = np.linalg.norm(xy[path]-xy0, axis=1)
-        return np.array(path), d, np.maximum.accumulate(d)
-    return np.array(path)
+    # combine distance paths to get overall growth
+    radius = np.vstack(radius).max(0)
+
+    return path, distFromOrigin, radius
 
 def random_walk_blind(xy, adj, tmax, rng=np.random, fast=False):
     """Random walk starting from a random site with "blind ant" that can make a bad choice
@@ -365,3 +415,43 @@ def _check_adj():
     assert ((adj.data==0)|(adj.data==1)).all()
     assert (adj-adj.transpose()).count_nonzero()==0
     assert (adj.diagonal()==0).all()
+
+def construct_adj_from_xy(xy):
+    """Construct adjacency matrix from the coordinates of occupied sites on a square
+    lattice.
+
+    Parameters
+    ----------
+    xy : list of twoples
+
+    Returns
+    -------
+    scipy.sparse.coo_matrix
+    """
+    
+    n = len(xy)
+    setxy = set(xy)  # for quick look up
+    xy = xy[:]
+    ix = []  # row index
+    iy = []  # col index
+    
+    for i,xy_ in list(enumerate(xy)):
+        # check for all four possible neighbors
+        if (xy_[0]-1,xy_[1]) in setxy:
+            ix.append(i)
+            iy.append(xy.index((xy_[0]-1,xy_[1]))+i)
+        if (xy_[0]+1,xy_[1]) in setxy:
+            ix.append(i)
+            iy.append(xy.index((xy_[0]+1,xy_[1]))+i)
+        if (xy_[0],xy_[1]-1) in setxy:
+            ix.append(i)
+            iy.append(xy.index((xy_[0],xy_[1]-1))+i)
+        if (xy_[0],xy_[1]+1) in setxy:
+            ix.append(i)
+            iy.append(xy.index((xy_[0],xy_[1]+1))+i)
+        
+        # remove point whose neighbors have been found and just symmetrize the matrix at the end
+        setxy.remove(xy.pop(0))
+
+    return coo_matrix((np.ones(2*len(ix)),(ix+iy,iy+ix)),
+                      shape=(n,n))
