@@ -329,6 +329,37 @@ class Square2D():
                             bondsToVisit.add((thisSite,xy))
                 counter += 1
         return clusterBonds, list(clusterSites), siteShell
+
+    def find_edge_sites(self, sites, radius=3, density=.5):
+        """Find sites that do not have a certain number of neighbors within a fixed
+        distances in every direction (a square centered about each point). This can be
+        used as a heuristic to identify boundary points.
+
+        Parameters
+        ----------
+        radius : int, 3
+        density : float, .5
+
+        Returns
+        -------
+        list of (x,y) twoples
+        """
+        
+        sites = set(sites)
+        thresholdNeighbors = ((radius*2+1)**2 - 1) * density
+        edgeSites = []
+
+        for xy in sites:
+            # count number of neighbors of xy
+            nNeighbors = 0
+            for dx in range(-radius,radius+1):
+                for dy in range(-radius,radius+1):
+                    if (xy[0]+dx,xy[1]+dy) in sites:
+                        nNeighbors += 1 
+            if nNeighbors<thresholdNeighbors:
+                edgeSites.append(xy)
+        
+        return edgeSites
 #end Square2D
 
 
