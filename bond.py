@@ -114,9 +114,13 @@ class Square2D():
                 edges.add(((i,0),(i,self.L-1)))
         return edges
         
-    def find_components(self):
+    def find_components(self, periodic=True):
         """Identify all connected components.
         
+        Parameters
+        ----------
+        periodic : bool, True
+            If True, identifies neighbors with periodic boundary conditions.
         Returns
         -------
         list
@@ -139,20 +143,36 @@ class Square2D():
             if xy in remainingNodes and (xy,xy0) in self.edges:
                 nodesToParse.append(xy)
                 remainingNodes.discard(xy)
-
-        while remainingNodes:
-            thisComponent = []
-            nodesToParse = [remainingNodes.pop()]
-            
-            while nodesToParse:
-                xy = nodesToParse.pop(0)
-                thisComponent.append( xy )
-                _test_node_01(xy, ((xy[0]+1)%L, xy[1]), nodesToParse)
-                _test_node_10(((xy[0]-1)%L, xy[1]), xy, nodesToParse)
-                _test_node_01(xy, (xy[0], (xy[1]+1)%L), nodesToParse)
-                _test_node_10((xy[0], (xy[1]-1)%L), xy, nodesToParse)
+        
+        if periodic:
+            while remainingNodes:
+                thisComponent = []
+                nodesToParse = [remainingNodes.pop()]
                 
-            components.append(thisComponent)
+                while nodesToParse:
+                    xy = nodesToParse.pop(0)
+                    thisComponent.append( xy )
+                    _test_node_01(xy, ((xy[0]+1)%L, xy[1]), nodesToParse)
+                    _test_node_10(((xy[0]-1)%L, xy[1]), xy, nodesToParse)
+                    _test_node_01(xy, (xy[0], (xy[1]+1)%L), nodesToParse)
+                    _test_node_10((xy[0], (xy[1]-1)%L), xy, nodesToParse)
+                    
+                components.append(thisComponent)
+        else:
+            while remainingNodes:
+                thisComponent = []
+                nodesToParse = [remainingNodes.pop()]
+                
+                while nodesToParse:
+                    xy = nodesToParse.pop(0)
+                    thisComponent.append( xy )
+                    _test_node_01(xy, (xy[0]+1, xy[1]), nodesToParse)
+                    _test_node_10((xy[0]-1, xy[1]), xy, nodesToParse)
+                    _test_node_01(xy, (xy[0], xy[1]+1), nodesToParse)
+                    _test_node_10((xy[0], xy[1]-1), xy, nodesToParse)
+                    
+                components.append(thisComponent)
+
         return components
 
     def sample(self, n_iters):
