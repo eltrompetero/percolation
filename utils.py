@@ -188,19 +188,6 @@ def digitize_by_x(x, y, bins):
         biny[i] = y[ix==i].mean()
     return binx, biny
 
-def _check_adj():
-    """Helper function for checking adjacency matrices.
-    
-    Checks that matrix is of type csr_matrix, matrix is square, nonzero elements are all
-    1, that matrix symmetric, and that diagonal elements are 0.
-    """
-
-    assert type(adj)==csr_matrix
-    assert adj.shape[0]==adj.shape[1]
-    assert ((adj.data==0)|(adj.data==1)).all()
-    assert (adj-adj.transpose()).count_nonzero()==0
-    assert (adj.diagonal()==0).all()
-
 def construct_adj_from_xy(xy):
     """Construct adjacency matrix from the coordinates of occupied sites on a square
     lattice.

@@ -263,15 +263,28 @@ def absorbing(xy, adj, absorbing_sites,
     indptr = adj.indptr.tolist()
     lenindptr = len(indptr)
     
-    counter = 0
-    while counter<tmax and not (xy[path[-1]] in absorbing_sites):
+    i = 0
+    while i<tmax and not (xy[path[-1]] in absorbing_sites):
         if path[-1]<lenindptr:
-            path.append(rng.choice(indices[indptr[path[i-1]]:indptr[path[i-1]+1]]))
+            path.append(rng.choice(indices[indptr[path[-1]]:indptr[path[-1]+1]]))
         else:
-            path.append(rng.choice(indices[indptr[path[i-1]]:]))
-        counter += 1
+            path.append(rng.choice(indices[indptr[path[-1]]:]))
+        i += 1
     
     if return_radius:
-        d = np.linalg.norm(xy[path]-xy0, axis=1)
+        d = np.linalg.norm(np.array(xy)[path]-xy0, axis=1)
         return np.array(path), d, np.maximum.accumulate(d)
     return np.array(path)
+
+def _check_adj(adj):
+    """Helper function for checking adjacency matrices.
+    
+    Checks that matrix is of type csr_matrix, matrix is square, nonzero elements are all
+    1, that matrix symmetric, and that diagonal elements are 0.
+    """
+
+    assert type(adj)==csr_matrix
+    assert adj.shape[0]==adj.shape[1]
+    assert ((adj.data==0)|(adj.data==1)).all()
+    assert (adj-adj.transpose()).count_nonzero()==0
+    assert (adj.diagonal()==0).all()

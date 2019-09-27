@@ -380,6 +380,72 @@ class Square2D():
                 edgeSites.append(xy)
         
         return edgeSites
+    
+    def _adj(self, sites):
+        """More general algorithm for returning adjacency matrix for a given set of sites.
+        
+        Parameters
+        ----------
+        sites : dict
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+        """
+        
+        ix = []
+        iy = []
+
+        # look at every pair of sites
+        for i in range(len(sites)-1):
+            for j in range(i+1,len(sites)):
+                if ((sites[i],sites[j]) in self.edges or
+                    (sites[j],sites[i]) in self.edges):
+                    ix.append(i)
+                    iy.append(j)
+        adj = coo_matrix((np.ones(2*len(ix)), (ix+iy,iy+ix)), shape=(len(sites),len(sites)))
+        return adj.tocsr()
+
+    def adj(self, xy):
+        """Construct adjacency matrix from the coordinates of occupied sites on a square
+        lattice.
+
+        Parameters
+        ----------
+        xy : list of twoples
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+        """
+        
+        n = len(xy)
+        setxy = set(xy)  # for quick look up
+        xy = xy[:]
+        ix = []  # row index
+        iy = []  # col index
+        
+        for i,xy_ in list(enumerate(xy)):
+            # check for all four possible neighbors
+            if (xy_[0]-1,xy_[1]) in setxy:
+                ix.append(i)
+                iy.append(xy.index((xy_[0]-1,xy_[1]))+i)
+            if (xy_[0]+1,xy_[1]) in setxy:
+                ix.append(i)
+                iy.append(xy.index((xy_[0]+1,xy_[1]))+i)
+            if (xy_[0],xy_[1]-1) in setxy:
+                ix.append(i)
+                iy.append(xy.index((xy_[0],xy_[1]-1))+i)
+            if (xy_[0],xy_[1]+1) in setxy:
+                ix.append(i)
+                iy.append(xy.index((xy_[0],xy_[1]+1))+i)
+            
+            # remove point whose neighbors have been found and just symmetrize the matrix at the end
+            setxy.remove(xy.pop(0))
+
+        return coo_matrix((np.ones(2*len(ix)),(ix+iy,iy+ix)),
+                          dtype=np.uint8,
+                          shape=(n,n)).tocsr()
 #end Square2D
 
 
