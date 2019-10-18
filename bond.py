@@ -618,7 +618,10 @@ class RandomFixedRadius():
                     while len(xy)>el:
                         el = len(xy)
                         xy = self.find_shared_neighbors(xy, self.allPointsByBox[bx])
-                    cPointsByBox[bx] = np.unique(np.append(cPointsByBox[bx], xy, axis=0), axis=0)
+                    if cPointsByBox[bx].size:
+                        cPointsByBox[bx] = np.unique(np.append(cPointsByBox[bx], xy, axis=0), axis=0)
+                    else:
+                        cPointsByBox[bx] = xy
                 
                     # look for neighboring points in all surrounding neighboring boxes
                     self._compare_with_one_box(bx, (bx[0]-1, bx[1]))
