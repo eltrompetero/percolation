@@ -5,6 +5,7 @@
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import cdist 
+import matplotlib.pyplot as plt
 
 
 def simulate_brownian_walker(component, edges, L,
@@ -79,7 +80,7 @@ def simulate_brownian_walker(component, edges, L,
 # Classes #
 # ======= #
 class Square2D():
-    def __init__(self, L, p, rng=np.random):
+    def __init__(self, L, p, rng=np.random, sample=True):
         """Generate a bond percolation cluster that lives on a 2D lattice and collect all
         clusters.
         
@@ -95,9 +96,10 @@ class Square2D():
         self.L = L
         self.p = p
         self.rng = rng
-
-        # sample from all possible edges
-        self.edges = self.random_graph()
+        
+        if sample: 
+            # sample from all possible edges
+            self.edges = self.random_graph()
 
     def random_graph(self):
         # sample from all possible edges
@@ -198,7 +200,7 @@ class Square2D():
             components.append(self.find_components())
         return components, edges
 
-    def grow_cluster(self, n_samples, tmax=np.inf, lmax=100, return_zeros=False):
+    def grow_cluster(self, n_samples, tmax=np.inf, lmax=None, return_zeros=False):
         """Grow a percolation cluster starting from (0,0). This is pretty fast and can do
         1000x1000 without trouble.
         
@@ -208,7 +210,7 @@ class Square2D():
             Number of clusters to generate.
         tmax : int, inf
             Max number of steps.
-        lmax : int, 1000
+        lmax : int, self.L
             Walls at x=+/-lmax and y=+/-lmax. Cluster growth ends when it hits a wall.
         return_zeros : bool, False
             If False, do not return a cluster that failed to grow.
@@ -221,6 +223,7 @@ class Square2D():
             All (x,y) coordinates in the cluster.
         """
         
+        lmax = lmax or self.L
         bonds = []
         sites = []
         for i in range(n_samples):
@@ -233,7 +236,7 @@ class Square2D():
 
     def grow_cluster_by_shell(self, n_samples,
                               tmax=np.inf,
-                              lmax=100,
+                              lmax=None,
                               return_zeros=False,
                               min_shells=1):
         """See self.grow_cluster().
@@ -242,7 +245,7 @@ class Square2D():
         ----------
         n_samples : int
         tmax : int, inf
-        lmax : int, 1000
+        lmax : int, self.L
         return_zeros : bool, False
         
         Returns
@@ -255,6 +258,7 @@ class Square2D():
             Keys are sites and values are shell indices.
         """
         
+        lmax = lmax or self.L
         bonds = []
         sites = []
         siteShells = []
@@ -535,6 +539,8 @@ class RandomFixedRadius():
         """Wrapper for comparing this box with a particular neighboring box and updating
         all the variables in the loop.
 
+        If neighboring box is not in the record, it is populated.
+
         Parameters
         ----------
         thisbx : tuple
@@ -558,23 +564,36 @@ class RandomFixedRadius():
         allPointsByBox = self.allPointsByBox
         cPointsByBox = self.cPointsByBox
         
+        # add neighboring box to record if it hasn't been added
         if not neighborbx in allPointsByBox.keys():
             self.populate_box(*neighborbx)
+
+        # get all first order neighbors from neighboring box
         xy = self.find_shared_neighbors(cPointsByBox[thisbx], allPointsByBox[neighborbx])
+
+        # if we have any neighbors...
         if len(xy):
+            # add any points in the neighboring box building from the connected cluster with found first order
+            # neighbors 
+            el = len(xy)
+            xy = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
+            while len(xy)>el:
+                el = len(xy)
+                xy = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
             if not neighborbx in self.boxesConsidered:
                 self.boxesToConsider.append(neighborbx)
-
-                # check if there is a connected component is this box alone in which case 
-                # points from this box that are neighbors of each other must be added
-                cPointsByBox[neighborbx] = self.find_shared_neighbors(xy, allPointsByBox[neighborbx])
+                cPointsByBox[neighborbx] = xy
             else:
-                # in case there are clusters that are not connected within a single box but by virtue of a
-                # link extending thru neighboring boxes
                 cPointsByBox[neighborbx] = np.unique(np.append(cPointsByBox[neighborbx], xy, axis=0), axis=0)
         
     def grow(self, max_steps=10_000):
-        """Grow cluster from origin."""
+        """Grow cluster from origin.
+        
+        For each box we consider, we add all pieces that form a connected component (given
+        the cluster points we have already identified. Then, we iterate through all
+        neighbors, again building connected components. Since each box is checked as many
+        times as it has neighbors, we should capture all points that are part of the
+        connected cluster even when they are disconnected within a box."""
         
         self.hitx = False
         self.hity = False
@@ -591,6 +610,16 @@ class RandomFixedRadius():
 
                 # search all neighbors if there are points in this box
                 if allPointsByBox[bx].size:
+                    # first, get connected component in this box since we may have added more components from
+                    # searching neighbors
+                    xy = self.cPointsByBox[bx]
+                    el = len(xy)
+                    xy = self.find_shared_neighbors(xy, self.allPointsByBox[bx])
+                    while len(xy)>el:
+                        el = len(xy)
+                        xy = self.find_shared_neighbors(xy, self.allPointsByBox[bx])
+                    cPointsByBox[bx] = np.unique(np.append(cPointsByBox[bx], xy, axis=0), axis=0)
+                
                     # look for neighboring points in all surrounding neighboring boxes
                     self._compare_with_one_box(bx, (bx[0]-1, bx[1]))
                     self._compare_with_one_box(bx, (bx[0]-1, bx[1]-1))
@@ -656,6 +685,7 @@ class RandomFixedRadius():
         # plot circles around points that are not included in cluster
         if show_bounding_circles:
             for k in allPointsByBox:
+                # ignore points that overlap
                 if k in cPointsByBox:
                     plotix = np.where( (cdist(allPointsByBox[k], cPointsByBox[k])>1e-14).all(1) )[0]
                 else:
