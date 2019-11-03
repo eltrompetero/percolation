@@ -276,7 +276,10 @@ class Square2D():
 
     def _grow_cluster(self, tmax, lmax):
         """Grow a single cluster. All bonds are explored once with probability p. Growth
-        stops when no more bonds can be explored."""
+        stops when no more bonds can be explored.
+        
+        
+        Once boundary is reached, the remaining bonds must still be explored..."""
 
         visitedBonds = set()
         # tuples of start to end

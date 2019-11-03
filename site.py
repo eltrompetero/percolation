@@ -319,6 +319,92 @@ class Square2D():
                                if self.lattice[ne[0],ne[1]] and (not ne in searched) and (not ne in thisSearch)]
             components.append(thisComponent)
         return components
+
+    def grow_cluster(self, n_samples,
+                     tmax=np.inf,
+                     lmax=None,
+                     return_zeros=False,
+                     periodic=False):
+        """Grow a percolation cluster starting from (0,0).
+        
+        Parameters
+        ----------
+        n_samples : int
+            Number of clusters to generate.
+        tmax : int, inf
+            Max number of steps.
+        lmax : int, self.L
+            Walls at x=+/-lmax and y=+/-lmax. Cluster growth ends when it hits a wall.
+        return_zeros : bool, False
+            If False, do not return a cluster that failed to grow.
+        periodic : bool, False
+        
+        Returns
+        -------
+        list of lists
+            All (x,y) coordinates in the cluster.
+        """
+        
+        lmax = lmax or self.N
+        sites = []
+        for i in range(n_samples):
+            s = []
+            while not return_zeros and len(s)<=1:
+                s = self._grow_cluster(tmax, lmax, periodic)
+            sites.append(s)
+        return sites
+
+    def _grow_cluster(self, tmax, lmax, periodic):
+        """Grow a single cluster. All bonds are explored once with probability p. Growth
+        stops when no more bonds can be explored."""
+
+        visitedSites = set()  # all sites that have been checked for occupancy
+        # tuples of start to end
+        sitesToVisit = set(( (0,-1), (0,1), (-1,0), (1,0) ))
+        clusterSites = set()
+        thisSite = (0,0)
+        
+        if periodic:
+            counter = 0
+            while sitesToVisit and counter<tmax:
+                thisSite = sitesToVisit.pop()
+                visitedSites.add(thisSite)
+
+                if self.rng.rand()<self.p:
+                    clusterSites.add(thisSite)
+                    # iterate through all potential neighbors of this site 
+                    potentialNewSites = (((thisSite[0]-1+lmax)%(2*lmax)-lmax, thisSite[1]),
+                                         (thisSite[0], (thisSite[1]-1+lmax)%(2*lmax)-lmax),
+                                         ((thisSite[0]+1+lmax)%(2*lmax)-lmax, thisSite[1]),
+                                         (thisSite[0], (thisSite[1]+1+lmax)%(2*lmax)-lmax))
+                    # check if any of these bonds are allowed to be explored
+                    for xy in potentialNewSites:
+                        if not xy in visitedSites:
+                            sitesToVisit.add(xy)
+                    counter += 1
+        else:
+            counter = 0
+            while sitesToVisit and counter<tmax:
+                thisSite = sitesToVisit.pop()
+                visitedSites.add(thisSite)
+
+                if self.rng.rand()<self.p:
+                    clusterSites.add(thisSite)
+                    # iterate through all potential neighbors of this site 
+                    potentialNewSites = ((thisSite[0]-1, thisSite[1]),
+                                         (thisSite[0], thisSite[1]-1),
+                                         (thisSite[0]+1, thisSite[1]),
+                                         (thisSite[0], thisSite[1]+1))
+                    # check if any of these bonds are allowed to be explored
+                    for xy in potentialNewSites:
+                        if not xy in visitedSites and abs(xy[0])<=lmax and abs(xy[1])<=lmax:
+                            sitesToVisit.add(xy)
+                    counter += 1
+        
+        if counter==tmax:
+            print("Iteration limit hit.")
+
+        return list(clusterSites)
 #end Square2D
 
 @njit
