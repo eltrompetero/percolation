@@ -309,18 +309,6 @@ class Backbone():
             thisSite = burningSites.pop()
             time[self.sites.index(thisSite)] = counter
 
-            xy = (thisSite[0]-1,thisSite[1])
-            check_one_site(xy)
-            
-            xy = (thisSite[0]+1,thisSite[1])
-            check_one_site(xy)
-
-            xy = (thisSite[0],thisSite[1]-1)
-            check_one_site(xy)
-
-            xy = (thisSite[0],thisSite[1]+1)
-            check_one_site(xy)
-
         self.loopSites = loopSites
         self.time = time
         return time, loopSites
@@ -344,7 +332,7 @@ class Backbone():
                 ix = self.sites.index(xy)
                 counts[ix] += 1
                 # if this site burned earlier, add to list
-                if self.time[ix]<thistime and counts[ix]<=1:
+                if self.time[ix]<thistime and counts[ix]==1:
                     burningSites.append(xy)
         
         while counter:
