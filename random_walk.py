@@ -276,6 +276,55 @@ def absorbing(xy, adj, absorbing_sites,
         return np.array(path), d, np.maximum.accumulate(d)
     return np.array(path)
 
+def saw(xy, adj, tmax, rng=np.random, fast=False):
+    """Self-avoiding random walk.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        Coordinates for measuring distance.
+    adj : scipy.sparse.csr_matrix
+    tmax : int
+        Max number of steps to take before stopping.
+    rng : np.random.RandomState
+    fast : bool, False
+        If False, check adjacency matrix.
+        
+    Returns
+    -------
+    ndarray of ints
+        Path given by indices of xy visited.
+    ndarray
+        Distance from origin.
+    ndarray
+        Max radius during trajectory.
+    """
+    
+    if not fast:
+        assert len(xy)==adj.shape[0]
+        _check_adj(adj)
+
+    path = []
+    path.append(rng.randint(len(xy)))
+    xy0 = xy[path[0]]  # for avoiding adding element access time in loop
+    
+    indices = adj.indices.tolist()
+    indptr = adj.indptr.tolist()
+    data = adj.data.tolist()
+    lenindptr = len(indptr)
+
+    for i in range(1, tmax):
+        if path[-1]<lenindptr:
+            p = rng.choice(indices[indptr[path[-1]]:indptr[path[-1]+1]])
+        else:
+            p = rng.choice(indices[indptr[path[-1]]:])
+
+        if data[p] and not p in path:
+            path.append(p)
+    
+    d = np.linalg.norm(xy[path]-xy0, axis=1)
+    return np.array(path), d, np.maximum.accumulate(d)
+
 def _check_adj(adj):
     """Helper function for checking adjacency matrices.
     
