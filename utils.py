@@ -256,33 +256,35 @@ class Backbone():
         list of tuples
         """
         
+        sitesAsSet = set(self.sites)
         counts = np.zeros(len(self.sites), dtype=int)  # no. of times each site is approached by fire
         time = np.zeros(len(self.sites), dtype=int)-1  # timestep at which site burned
         p2ix = self.sites.index(self.p2)
         loopSites = []  # self.sites that are first burnt by multiple neighbors in the same time step
         
         def check_one_site(xy):
-            if xy in self.sites:
+            if xy in sitesAsSet:
                 ix = self.sites.index(xy)
                 counts[ix] += 1
                 # if this site has not burned before, add it to list
                 if counts[ix]==1:
-                    burningSites.append(xy)
+                    newBurningSites.add(xy)
                 # if this loop has been burned already in the same time step, it's a loop site
-                elif xy in burningSites[shellSize-i+1:]:
+                elif xy in newBurningSites:
                     loopSites.append(xy)
 
         # Starting at self.p1, burn neighboring self.sites and keep track of how many
         # times each site tries to be burned in counts.
-        burningSites = [self.p1]
+        burningSites = set([self.p1])
         counts[self.sites.index(self.p1)] += 1
         counter = 0
         while counts[p2ix]<1:
             shellSize = len(burningSites)
+            newBurningSites = set()
 
             # iterate through only the neighbors of currently burning self.sites
             for i in range(shellSize):
-                thisSite = burningSites.pop(0)
+                thisSite = burningSites.pop()
                 time[self.sites.index(thisSite)] = counter
 
                 xy = (thisSite[0]-1,thisSite[1])
@@ -296,14 +298,14 @@ class Backbone():
 
                 xy = (thisSite[0],thisSite[1]+1)
                 check_one_site(xy)
+            burningSites = newBurningSites
             counter += 1
         
         # last shell
         shellSize = len(burningSites)
 
-        # iterate through only the neighbors of currently burning self.sites
         for i in range(shellSize):
-            thisSite = burningSites.pop(0)
+            thisSite = burningSites.pop()
             time[self.sites.index(thisSite)] = counter
 
             xy = (thisSite[0]-1,thisSite[1])
@@ -330,13 +332,14 @@ class Backbone():
             Tuples indicating self.sites in elastic backbone.
         """
         
+        sitesAsSet = set(self.sites)
         ebackbone = []
         counts = np.zeros(len(self.sites), dtype=int)  # no. of times each site is approached by fire
         burningSites = [self.p2]
         counter = self.time.max()
 
         def check_one_site(xy):
-            if xy in self.sites:
+            if xy in sitesAsSet:
                 ix = self.sites.index(xy)
                 counts[ix] += 1
                 # if this site burned earlier, add to list
@@ -382,44 +385,45 @@ class Backbone():
         
         assert len(self.sites)==self.time.size
         
+        sitesAsSet = set(self.sites)
         backbone = []  # growing backbone
         loopSites = self.loopSites[:]
 
-        def check_one_site(xy, thistime, burnedSites, burningSites):
-            if xy in self.sites and not xy in burnedSites:
+        def check_one_site(xy, thistime):
+            if xy in sitesAsSet and not xy in burnedSites:
                 # if site is in elastic backbone, don't do anything, but note that it's been burnt
                 if (xy in self.ebackbone) or (xy in backbone):
                     return xy
                 ix = self.sites.index(xy)
                 # if this site burned earlier, add to list
                 if self.time[ix]<thistime:
-                    burnedSites.append(xy)
-                    burningSites.append(xy)
+                    burnedSites.add(xy)
+                    burningSites.add(xy)
         
         counter = 0  # number of self.sites we've passed thru without having to add new self.sites
         while loopSites:
             burnedebackbone = []
             site = loopSites.pop(0)
-            burningSites = [site]
-            burnedSites = [site]  # keeping track of all self.sites that will be burned and have burned
+            burningSites = set([site])
+            burnedSites = set([site])  # keeping track of all self.sites that will be burned and have burned
             while burningSites:
                 # loop thru one shell
                 for j in range(len(burningSites)):
-                    thisSite = burningSites.pop(0) 
+                    thisSite = burningSites.pop() 
                     thistime = self.time[self.sites.index(thisSite)]
                     
                     # check all neighbors and then light them if appropriate
                     xy = (thisSite[0]-1,thisSite[1])
-                    burnedebackbone.append( check_one_site(xy, thistime, burnedSites, burningSites) )
+                    burnedebackbone.append( check_one_site(xy, thistime) )
 
                     xy = (thisSite[0]+1,thisSite[1])
-                    burnedebackbone.append( check_one_site(xy, thistime, burnedSites, burningSites) )
+                    burnedebackbone.append( check_one_site(xy, thistime) )
 
                     xy = (thisSite[0],thisSite[1]-1)
-                    burnedebackbone.append( check_one_site(xy, thistime, burnedSites, burningSites) )
+                    burnedebackbone.append( check_one_site(xy, thistime) )
 
                     xy = (thisSite[0],thisSite[1]+1)
-                    burnedebackbone.append( check_one_site(xy, thistime, burnedSites, burningSites) )
+                    burnedebackbone.append( check_one_site(xy, thistime) )
             
             # if multiple burned sites are in backbone, 
             if len(set([i for i in burnedebackbone if not i is None]))>1:
