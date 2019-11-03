@@ -235,6 +235,7 @@ def construct_adj_from_xy(xy):
 class Backbone():
     def __init__(self, sites, p1, p2):
         assert p1 in sites and p2 in sites
+        assert p1 != p2
         self.p1 = p1
         self.p2 = p2
         self.sites = sites
@@ -278,7 +279,7 @@ class Backbone():
         burningSites = set([self.p1])
         counts[self.sites.index(self.p1)] += 1
         counter = 0
-        while counts[p2ix]<1:
+        while counts[p2ix]<1 and burningSites:
             shellSize = len(burningSites)
             newBurningSites = set()
 
@@ -300,7 +301,7 @@ class Backbone():
                 check_one_site(xy)
             burningSites = newBurningSites
             counter += 1
-        
+
         # last shell
         shellSize = len(burningSites)
 

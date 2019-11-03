@@ -356,12 +356,12 @@ class Square2D():
 
     def _grow_cluster(self, tmax, lmax, periodic):
         """Grow a single cluster. All bonds are explored once with probability p. Growth
-        stops when no more bonds can be explored."""
+        stops when no more sites can be explored."""
 
         visitedSites = set()  # all sites that have been checked for occupancy
         # tuples of start to end
         sitesToVisit = set(( (0,-1), (0,1), (-1,0), (1,0) ))
-        clusterSites = set()
+        clusterSites = set([(0,0)])
         thisSite = (0,0)
         
         if periodic:
