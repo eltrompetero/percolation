@@ -233,6 +233,14 @@ def construct_adj_from_xy(xy):
 # Classes #
 # ======= #
 class Backbone():
+    """
+    Members
+    -------
+    p1, p2
+    sites
+    time
+    ebackbone
+    """
     def __init__(self, sites, p1, p2):
         assert p1 in sites and p2 in sites
         assert p1 != p2
@@ -314,7 +322,8 @@ class Backbone():
         return time, loopSites
 
     def burn2(self):
-        """
+        """Burn backwards to beginning of cluster.
+        
         Returns
         -------
         list
@@ -324,7 +333,7 @@ class Backbone():
         sitesAsSet = set(self.sites)
         ebackbone = []
         counts = np.zeros(len(self.sites), dtype=int)  # no. of times each site is approached by fire
-        burningSites = [self.p2]
+        burningSites = [self.p2]  # start from ending site
         counter = self.time.max()
 
         def check_one_site(xy):
@@ -355,7 +364,8 @@ class Backbone():
                 xy = (thisSite[0],thisSite[1]+1)
                 check_one_site(xy) 
             counter -= 1
-
+        
+        ebackbone.append(self.p1)
         self.ebackbone = ebackbone
         return ebackbone
 

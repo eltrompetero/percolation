@@ -228,7 +228,7 @@ class Square2D():
         sites = []
         for i in range(n_samples):
             s = []
-            while not return_zeros and len(s)==0:
+            while not return_zeros and len(s)<=1:
                 b, s = self._grow_cluster(tmax, lmax)
             bonds.append(b)
             sites.append(s)
@@ -265,7 +265,7 @@ class Square2D():
         counter = 0
         while counter<n_samples:
             s = []
-            while not return_zeros and len(s)==0:
+            while not return_zeros and len(s)==1:
                 b, s, sh = self._grow_cluster_by_shell(tmax, lmax)
             if len(sh)>=min_shells:
                 bonds.append(b)
@@ -284,7 +284,7 @@ class Square2D():
         visitedBonds = set()
         # tuples of start to end
         bondsToVisit = set(( ((0,0),(1,0)), ((0,0),(0,1)), ((0,0),(-1,0)), ((0,0),(0,-1)) ))
-        clusterSites = set()
+        clusterSites = set([(0,0)])
         clusterBonds = []
         thisSite = (0,0)
         

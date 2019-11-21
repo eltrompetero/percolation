@@ -395,7 +395,7 @@ class Square2D():
                                          (thisSite[0], thisSite[1]-1),
                                          (thisSite[0]+1, thisSite[1]),
                                          (thisSite[0], thisSite[1]+1))
-                    # check if any of these bonds are allowed to be explored
+                    # check if neighboring sites are allowed to be explored
                     for xy in potentialNewSites:
                         if not xy in visitedSites and abs(xy[0])<=lmax and abs(xy[1])<=lmax:
                             sitesToVisit.add(xy)
