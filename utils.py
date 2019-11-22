@@ -238,7 +238,9 @@ class Backbone():
     -------
     p1, p2
     sites
-    time
+    time : ndarray
+        Time step at which site was reached in first burn through. -1 means that site was not reached before
+        burn was completed.
     ebackbone
     """
     def __init__(self, sites, p1, p2):
@@ -341,7 +343,7 @@ class Backbone():
                 ix = self.sites.index(xy)
                 counts[ix] += 1
                 # if this site burned earlier, add to list
-                if self.time[ix]<thistime and counts[ix]==1:
+                if self.time[ix]==(thistime-1) and counts[ix]==1:
                     burningSites.append(xy)
         
         while counter:
@@ -395,6 +397,8 @@ class Backbone():
                     return xy
                 ix = self.sites.index(xy)
                 # if this site burned earlier, add to list
+                # NOTE: should this be a stricter condition about burning in the last time step or just
+                # earlier?
                 if self.time[ix]<thistime:
                     burnedSites.add(xy)
                     burningSites.add(xy)
@@ -431,4 +435,14 @@ class Backbone():
             counter += 1
         self.backbone = list(set(backbone))
         return backbone
+
+    def site_time(self, xy):
+        """Time at which site is reached.
+
+        Parameters
+        ----------
+        xy : tuple
+        """
+
+        return self.time[self.sites.index(xy)]
 #end Backbone
