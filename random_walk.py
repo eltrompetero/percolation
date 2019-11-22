@@ -100,6 +100,24 @@ def myopic_ant(xy, adj, tmax,
         return np.array(path), d, np.maximum.accumulate(d)
     return np.array(path)
 
+def many_myopic_ant(nsamples, *args, **kwargs):
+    """
+    Parameters
+    ----------
+    nsamples : int
+    *args
+    **kwargs
+
+    Returns
+    -------
+    See myopic_ant().
+    """
+
+    out = []
+    for i in range(nsamples):
+        out.append(myopic_ant(*args, **kwargs))
+    return list(zip(*out))
+
 def multiple_walkers(n_walkers, xy, adj, tmax,
                      rng=np.random,
                      return_radius=True,
