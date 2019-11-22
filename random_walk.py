@@ -5,6 +5,49 @@
 from .utils import *
 
 
+def construct_planar_adj(xy):
+    """Construct adjacency matrix just using set of points in plane and only connecting
+    points that are neighbors of one another.
+
+    Not assuming that boundaries are periodic.
+
+    Parameters
+    ----------
+    xy : list of twoples
+        Sites. Will be converted to a set.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix
+        Adjacency matrix ordered in the same way the sites are given in xy.
+    """
+
+    xydict = set(xy)
+
+    def find_neighbors(xy_):
+        neighbors = []
+        if (xy_[0]-1,xy_[1]) in xydict:
+            neighbors.append((xy_[0]-1,xy_[1]))
+        if (xy_[0]+1,xy_[1]) in xydict:
+            neighbors.append((xy_[0]+1,xy_[1]))
+        if (xy_[0],xy_[1]-1) in xydict:
+            neighbors.append((xy_[0],xy_[1]-1))
+        if (xy_[0],xy_[1]+1) in xydict:
+            neighbors.append((xy_[0],xy_[1]+1))
+        return neighbors
+    
+    # loop through all sites and all 4 of its possible neighbors
+    i = []
+    j = []
+    for counter,xy_ in enumerate(xy):
+        neighbors = find_neighbors(xy_)
+        if neighbors:
+            for n in neighbors:
+                i.append(counter)
+                j.append(xy.index(n))
+    
+    return coo_matrix((np.ones(len(i)*2), (i+j,j+i))).tocsr()
+
 def myopic_ant(xy, adj, tmax,
               rng=np.random,
               return_radius=True,
