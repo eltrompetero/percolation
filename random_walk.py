@@ -46,7 +46,7 @@ def construct_planar_adj(xy):
                 i.append(counter)
                 j.append(xy.index(n))
     
-    return coo_matrix((np.ones(len(i)*2), (i+j,j+i))).tocsr()
+    return coo_matrix((np.ones(len(i)), (i,j))).tocsr()
 
 def myopic_ant(xy, adj, tmax,
               rng=np.random,
